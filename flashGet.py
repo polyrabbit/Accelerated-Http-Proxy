@@ -11,15 +11,46 @@ import re
 import traceback
 from itertools import izip
 
-AUTORANGE_MAXSIZE = 1024*1024
-minsize = 256*1024
-#NOTE: youku will response with 403 if block_size is too small
+
 AUTORANGE_MAXSIZE = 512*1024
 PRE_READ_SIZE = 1024
 MAX_RETRY = 2
 THREAD_POOL_SIZE = 5
 SOCKET_TIMEOUT_SEC = 30
 debuglevel = 0
+
+class RangeBytes(object):
+    #NOTE: youku will response with 403 if block_size is too small
+    MIN_SIZE = 256*1024
+    MAX_SIZE = 2*1024*1024
+    assert MIN_SIZE<MAX_SIZE
+    range_size = SOCKET_TIMEOUT_SEC*10*1024
+    update_mutex = threading.Lock()
+
+    def __init__(self, first, tot_size):
+        self.first = first
+        self.last = tot_size-1
+
+    @classmethod
+    def adjust_size(cls, last_amt):
+        with cls.update_mutex:
+            avg = int(cls.range_size*0.4+last_amt*0.6)
+            if avg<cls.MIN_SIZE:
+                avg = cls.MIN_SIZE
+            elif avg>cls.MAX_SIZE:
+                avg = cls.MAX_SIZE
+            cls.range_size = avg
+
+    def __iter__(self):
+        st = self.first
+        while st<self.last:
+            ed = min(st+RangeBytes.range_size-1, self.last)  # unsynced
+            if self.last-ed < RangeBytes.MIN_SIZE:
+                # bigger size is OK. if this should happen,
+                # it must be the last part, no one will compete.
+                ed = self.last
+            yield (st, ed)
+            st = ed+1
 
 class TaskQueue(object):
     
@@ -123,31 +154,34 @@ class FlashGet(object):
         self.conn.close()  # ensure closed
         start = self.fetch_from()
         tot_size = self.content_length()
-        range_starts = xrange(start, tot_size, AUTORANGE_MAXSIZE)
-        buckets = [Queue() for i in range_starts]
+        buckets = Queue()
         # int passed by value not reference, 
         # in this model I need threads to share the same var, thus created in the public place
-        finished = AtomicInt(0)
+        finished = AtomicInt(PRE_READ_SIZE)
         
 
         def async_spawn():
             is_first = False  # I use pre-read to avoid you 
-            for buck, st in izip(buckets, range_starts):
-                ed = min(st+AUTORANGE_MAXSIZE-1, tot_size-1)
+            for st, ed in RangeBytes(start, tot_size):
+                buck = Queue()
                 # self.headers.copy(), multiple threads will modify headers so we cannot share it
                 rf = RangeFetch(self.method, self.url, self.payload, self.headers.copy(), st, ed, buck, finished, tot_size, self.stopped)
                 task_queue.add_task(rf.fetch)
+                buckets.put(buck)
                 #TODO: block to download the first part
                 if is_first:
                     buck.wait_used()
                     is_first = False
+            buck = Queue()  # TODO: too verbose
+            buck.put(StopIteration)
+            buckets.put(buck)
 
         threading.Thread(target=async_spawn).start()
 
-        for buck in buckets:
-            data =  buck.get()
+        while True:
+            data = buckets.get().get()
             if data is StopIteration:
-                return
+                break  # TODO: clean ups
             yield data
         
 
@@ -190,8 +224,10 @@ class RangeFetch(FlashGet):
                     time.sleep(2)
             else:
                 self.finished += self.content_length()
+                speed = self.content_length()/time_elapsed
+                RangeBytes.adjust_size(speed*SOCKET_TIMEOUT_SEC)
                 logging.info('Content-Range %s, "%s" at %.2fKB/s, finished %.2f%%', self.getheader('Content-Range')[6:], self.url, 
-                    self.content_length()/time_elapsed/1024, 100*float(self.finished)/self.tot_size)
+                    speed/1024, 100*float(self.finished)/self.tot_size)
                 return
         else:
             logging.exception('>>>>>>>>>>>>>>> Range Fetch failed(%r) %d-%d', self.url, self.from_, self.to)
