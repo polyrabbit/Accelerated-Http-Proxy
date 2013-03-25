@@ -112,7 +112,7 @@ def main():
     httpd = ProxyServer(server_address, ProxyRequestHandler)
 
     sa = httpd.server_address
-    print "Serving HTTP on", sa[0], "port", sa[1], "..."
+    print "Serving proxy on", sa[0], "port", sa[1], "..."
     httpd.serve_forever()
 
 if __name__ == '__main__':
