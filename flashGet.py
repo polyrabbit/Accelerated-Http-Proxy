@@ -115,7 +115,6 @@ class FlashGet(object):
 			''.join('%s: %s\r\n' % (k, v) for k, v in self.getheaders() if k!='transfer-encoding'),
 			self.read(PRE_READ_SIZE))
 		if self.need_for_speed():
-			print '-'*40, 'header finished'
 			for data in self.spawn():
 				yield data
 		else:
@@ -142,7 +141,7 @@ class FlashGet(object):
 
 		threading.Thread(target=async_spawn).start()
 
-		for data in sliding_window.submit_window():
+		for data in sliding_window.full_window():
 			yield data
 		
 

@@ -1,15 +1,9 @@
 #!/usr/bin/env python
 # coding:utf-8
 
-import httplib
-import logging
-import time
-import urlparse
-import threading
 import Queue
-import re
-import traceback
 import itertools
+import threading
 
 SOCKET_TIMEOUT_SEC = 30
 
@@ -25,7 +19,7 @@ class Window(object):
 class SlidingWindow(object):
 	#NOTE: youku will response with 403 if wnd_size is too small
 	MIN_SIZE = 256*1024
-	MAX_SIZE = 2*1024*1024
+	MAX_SIZE = 5*1024*1024
 	alpha = 0.6  # smoothing factor
 	assert MIN_SIZE<MAX_SIZE
 	wnd_size = SOCKET_TIMEOUT_SEC*10*1024
@@ -34,9 +28,9 @@ class SlidingWindow(object):
 	def __init__(self, first, tot_size, size=5):
 		self.first = first
 		self.last = tot_size-1
-		rcv_wnd = [Queue.Queue() for _ in xrange(size)]
-		self.sema_wnd_to_submit = threading.Semaphore(0)		
-		self.sema_wnd_available = threading.Semaphore(size)		
+		rcv_wnd = [Queue.Queue(1) for _ in xrange(size)]
+		self.wnd_occupied = threading.Semaphore(0)		
+		self.wnd_available = threading.Semaphore(size)		
 		self.last_wnd_accepted = itertools.cycle(rcv_wnd)
 		self.last_wnd_received = itertools.cycle(rcv_wnd)
 
@@ -47,11 +41,20 @@ class SlidingWindow(object):
 			smoothed_size = int(cls.wnd_size*(1-cls.alpha)+last_size*cls.alpha)
 			cls.wnd_size = min(cls.MAX_SIZE, max(cls.MIN_SIZE, smoothed_size))
 
-	def submit_window(self):
+	def get_head(self):
+		self.wnd_available.acquire()  # delete one free window
+		self.wnd_occupied.release()
+		return self.last_wnd_received.next()
+
+	def get_tail_data(self):
+		self.wnd_occupied.acquire()  # delete one occupied window
+		data = self.last_wnd_accepted.next().get()
+		self.wnd_available.release()
+		return data
+
+	def full_window(self):
 		while True:
-			self.sema_wnd_available.release()
-			self.sema_wnd_to_submit.acquire()
-			data = self.last_wnd_accepted.next().get()
+			data = self.get_tail_data()
 			if data is StopIteration:
 				return
 			yield data
@@ -59,51 +62,15 @@ class SlidingWindow(object):
 	def available_window(self):
 		st = self.first
 		while st<self.last:
-			self.sema_wnd_available.acquire()
-			self.sema_wnd_to_submit.release()
-			ed = min(st+self.__class__.wnd_size-1, self.last)  # unsynced
-			if self.last-ed < self.__class__.MIN_SIZE:
+			ed = min(st+SlidingWindow.wnd_size-1, self.last)  # unsynced
+			if self.last-ed < SlidingWindow.MIN_SIZE:
 				# bigger size is OK. if this should happen,
 				# it must be the last part, no one will compete.
 				ed = self.last
-			yield Window(st, ed, self.last_wnd_received.next())
+			yield Window(st, ed, self.get_head())
 			st = ed+1
 
-		self.sema_wnd_available.acquire()
-		self.sema_wnd_to_submit.release()
-		self.last_wnd_received.next().put(StopIteration)
-
-def test_blocking_get():
-	size = 3
-	sw = SlidingWindow(size)
-	for i in range(size):
-		sw.next_wnd_available()
-	sw.next_wnd_available()
-
-def test_blocking_put():
-	size = 3
-	sw = SlidingWindow(size)
-	for i in range(size):
-		sw.next_wnd_available()
-	for i in range(size):
-		sw.next_wnd_to_submit()
-	sw.next_wnd_to_submit()
-
-def test_put_get():
-	size = 3
-	sw = SlidingWindow(size)
-	def async_spawn():
-		for i in range(size):
-			sw.next_wnd_available().put(i)
-		buck = sw.next_wnd_available()
-		buck.put(StopIteration)
-
-	threading.Thread(target=async_spawn).start()
-	
-	while True:
-		data = sw.next_wnd_to_submit().get()
-		print data
-
+		self.get_head().put(StopIteration)
 
 if __name__=='__main__':
 	# test_blocking_get()
