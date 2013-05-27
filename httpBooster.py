@@ -44,8 +44,8 @@ class ProxyRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler, object):
 		return True
 
 	def handle_one_request(self):
-		self.raw_requestline = self.rfile.readline()
 		self.stopped = threading.Event() #TODO: need refine
+		self.raw_requestline = self.rfile.readline()
 		if not self.raw_requestline:
 			self.close_connection = 1
 			return
