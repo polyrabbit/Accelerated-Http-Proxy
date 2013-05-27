@@ -5,7 +5,8 @@ import Queue
 import itertools
 import threading
 
-SOCKET_TIMEOUT_SEC = 30
+from config import SOCKET_TIMEOUT_SEC
+
 
 class Window(object):
 	def __init__(self, first, last, bucket):
