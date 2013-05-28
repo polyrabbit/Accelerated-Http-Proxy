@@ -176,7 +176,7 @@ class RangeFetch(FlashGet):
             except Exception as e:
                 if i != self.max_retry-1:
                     logging.exception('The #%d attempt to fetch %d-%d failed, try again.', i+1, from_, to)
-                    time.sleep(2)
+                    # time.sleep(2)
             else:
                 self.finished += self.content_length()
                 speed = self.content_length()/time_elapsed
