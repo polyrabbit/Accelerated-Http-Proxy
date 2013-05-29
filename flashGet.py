@@ -2,7 +2,7 @@
 # coding:utf-8
 
 import logging
-import time
+from time import time
 import threading
 from Queue import Queue
 import re
@@ -84,7 +84,7 @@ class FlashGet(object):
         """return true if the server-side support Accept-Range header"""
         # http 1.0 support too.
         return self.status==200 and \
-                self.getheader('accept-range') != 'none'
+                self.getheader('accept-range') != 'none'  #TODO, confirm the returned header is lowercase
 
     def need_for_speed(self):
         if self.content_length()>AUTORANGE_MAXSIZE and self.support_ac_range():
@@ -112,7 +112,7 @@ class FlashGet(object):
             yield resp.read()
 
     def spawn(self):
-        # self.conn.close()  # ensure closed
+        self.response.close()  # ensure closed
         start = self.fetch_from()
         tot_size = self.content_length()
         sliding_window = SlidingWindow(start, tot_size, THREAD_POOL_SIZE)
@@ -125,7 +125,6 @@ class FlashGet(object):
                 # self.headers.copy(), multiple threads will modify headers so we cannot share it
                 rf = RangeFetch(self.request.copy(), wnd, finished, tot_size)
                 task_queue.add_task(rf.fetch)
-                time.sleep(3)
 
         threading.Thread(target=async_spawn).start()
 
@@ -162,7 +161,7 @@ class RangeFetch(FlashGet):
         for i in xrange(self.max_retry):
             if self.req.is_closed(): return
             try:
-                time_start = time.time()
+                time_start = time()
 
                 resp = pools[self.req.url].urlopen(self.req)
                 assert resp.status == 206, 'actually is %d' % resp.status
@@ -172,7 +171,7 @@ class RangeFetch(FlashGet):
                     resp.release_conn()
                 assert self.content_length()==to-from_+1, 'expected %d, received %d' % (self.content_length(), to-from_+1)
 
-                time_elapsed = time.time()-time_start
+                time_elapsed = time()-time_start
             except Exception as e:
                 if i != self.max_retry-1:
                     logging.exception('The #%d attempt to fetch %d-%d failed, try again.', i+1, from_, to)

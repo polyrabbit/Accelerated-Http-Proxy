@@ -181,7 +181,8 @@ class ConnectionPool(object):
         # conn.send(str(request))  # HTTPConnection has a hidden method called send.
         # conn._HTTPConnection__state = httplib._CS_REQ_SENT # I need to write my own httplib
         r = conn.getresponse()
-        r.release_conn = lambda: self._put_conn(conn)
+        r.close_conn = lambda : conn.close()
+        r.release_conn = lambda : self._put_conn(conn)
         return r
 
     def clear(self):
