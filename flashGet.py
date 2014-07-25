@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 # coding:utf-8
-
 import httplib
 import logging
 import time
@@ -12,7 +11,6 @@ import traceback
 from itertools import izip
 
 from slidingWindow import SlidingWindow
-
 
 AUTORANGE_MAXSIZE = 512*1024
 PRE_READ_SIZE = 1024
@@ -96,21 +94,19 @@ class FlashGet(object):
 	def support_ac_range(self):
 		"""return true if the server-side support Accept-Range header"""
 		# http 1.0 support too.
-		return self.getheader('accept-range') != 'none'
+		return self.getheader('accept-range').lower() != 'none'
 
 	def need_for_speed(self):
-		if self.content_length()>AUTORANGE_MAXSIZE and self.support_ac_range():
-			return True
-		return False
+		return self.content_length() > AUTORANGE_MAXSIZE and \
+                self.support_ac_range()
 
 	def fetch_from(self):
 		if self.status == 206:
-			print 'he'*20 #TODO: test here
-			return PRE_READ_SIZE+int(re.search(r'bytes (\d+)-\d+/\d+', self.getheader('Content-Range')).group(1))
+			print 'hehe '*20 #TODO: test here
+			return PRE_READ_SIZE + int(re.search(r'bytes (\d+)-\d+/\d+', self.getheader('Content-Range')).group(1))
 		return PRE_READ_SIZE
 
 	def download(self):
-		resp = self.response
 		yield '%s %s %s\r\n%s\r\n%s' % (self.__class__.http_vsn_str[self.version], self.status, self.reason,
 			''.join('%s: %s\r\n' % (k, v) for k, v in self.getheaders() if k!='transfer-encoding'),
 			self.read(PRE_READ_SIZE))
@@ -131,13 +127,11 @@ class FlashGet(object):
 		# in this model I need threads to share the same var, thus created in the public place
 		finished = AtomicInt(PRE_READ_SIZE)
 		
-
 		def async_spawn():
 			for wnd in sliding_window.available_window():
 				# self.headers.copy(), multiple threads will modify headers so we cannot share it
 				rf = RangeFetch(self.method, self.url, self.payload, self.headers.copy(), wnd, finished, tot_size, self.stopped)
 				task_queue.add_task(rf.fetch)
-
 
 		threading.Thread(target=async_spawn).start()
 

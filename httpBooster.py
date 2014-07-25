@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 # coding:utf-8
-
 import BaseHTTPServer
 import httplib
 import SocketServer
@@ -14,7 +13,7 @@ import urlparse
 import flashGet
 
 BIND_IP = '0.0.0.0'
-BIND_PORT = 27015
+BIND_PORT = 27015  # I love Counter-Strike
 
 # flashGet.debuglevel = 1
 logging._srcfile = None
@@ -78,7 +77,6 @@ class ProxyRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler, object):
 			self.handle_one_request()
 			# while not self.close_connection:
 			#	 self.handle_one_request()
-
 		except socket.error as e:
 			self.stopped.set()
 			self.send_error(500, str(e))
