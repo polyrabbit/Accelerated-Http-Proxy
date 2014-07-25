@@ -94,7 +94,7 @@ class FlashGet(object):
 	def support_ac_range(self):
 		"""return true if the server-side support Accept-Range header"""
 		# http 1.0 support too.
-		return self.getheader('accept-range').lower() != 'none'
+		return self.getheader('accept-range', '').lower() != 'none'
 
 	def need_for_speed(self):
 		return self.content_length() > AUTORANGE_MAXSIZE and \
@@ -137,7 +137,6 @@ class FlashGet(object):
 
 		for data in sliding_window.full_window():
 			yield data
-		
 
 class RangeFetch(FlashGet):
 
@@ -166,7 +165,7 @@ class RangeFetch(FlashGet):
 				self.conn = create_connection(self.method, self.url, self.payload, self.headers)
 				self.response = self.conn.getresponse()
 				resp = self.response
-				assert resp.status == 206, 'actually is %d' % resp.status
+				# assert resp.status == 206, 'actually is %d' % resp.status
 				self.window.fill(resp.read())
 				self.conn.close()
 				assert self.content_length()==to-from_+1, 'expected %d, received %d' % (self.content_length(), to-from_+1)
