@@ -15,7 +15,7 @@ from slidingWindow import SlidingWindow
 AUTORANGE_MAXSIZE = 512*1024
 PRE_READ_SIZE = 1024
 MAX_RETRY = 3
-THREAD_POOL_SIZE = 5
+THREAD_POOL_SIZE = 30
 SOCKET_TIMEOUT_SEC = 30
 debuglevel = 0
 
@@ -24,7 +24,9 @@ class TaskQueue(object):
 	def __init__(self, size):
 		self.queue = Queue(size)
 		for i in range(size):
-			threading.Thread(target=self.work).start()
+                    t = threading.Thread(target=self.work)
+                    t.daemon = True
+                    t.start()
 
 	def add_task(self, callable_task):
 		self.queue.put(callable_task)

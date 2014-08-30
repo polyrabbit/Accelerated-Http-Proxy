@@ -23,7 +23,7 @@ logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(asctime)s - %(
 urlparse.MAX_CACHE_SIZE = 100
 
 class ProxyServer(SocketServer.ThreadingTCPServer):
-	allow_reuse_address = False
+	allow_reuse_address = True
 	daemon_threads = True
 
 class ProxyRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler, object):
