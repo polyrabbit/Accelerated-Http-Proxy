@@ -6,4 +6,4 @@ http-booster
 ### 使用方法
 1. 运行`python httpBooster.py`
 2. 将浏览器的http代理设为`localhost:27015`
-3. Done.
+3. 开始使用你多线程加速后的浏览器吧~
